@@ -4,7 +4,7 @@ CFLAGS+=-Wall
 CFLAGS+=-O2
 CFLSGS+=-g
 LDFLAGS+=-pthread
-LDFLAGS+=-lrt
+LDLIBS+=-lrt
 
 .PHONY: all clean
 
