@@ -1,0 +1,1 @@
+../common/ski-test.c

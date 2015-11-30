@@ -1,0 +1,1 @@
+../common/ski-debug-stdin.c
