@@ -70,6 +70,9 @@ void print_affinity(FILE* file){
 
 static volatile unsigned low = 0x50000000 - 4096;
 static volatile unsigned high = 0xb0000000;
+
+#define LIBADDR (0x80000000UL)
+
 int child(void* arg){
 	char* lib = (char*)arg;
 
@@ -82,6 +85,8 @@ int child(void* arg){
 	int ret = sys_uselib(lib);
 	unsigned local_low = low;
 	unsigned local_high = high;
+	sys_munmap(LIBADDR+4096, 4096);
+	sys_munmap(LIBADDR, 4096);
 	ski_test_finish(STD_SKI_CPU_AFFINITY + 1, 0);
 	hypercall_debug_quiet(STD_SKI_CPU_AFFINITY + 1, "Child finished low=%x, high=%x\n", local_low, local_high);
 	exit(ret);
@@ -91,6 +96,13 @@ void map_a_page_pair(void){
 	static int prot = PROT_READ;
 	sys_mmap2(low+=4096, 4096, prot ^= PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);
 	sys_mmap2(high-=4096, 4096, prot, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, 0, 0);		
+}
+
+void unmap_a_page_pair(void){
+	sys_munmap(low, 4096);
+	sys_munmap(high, 4096);
+	low-=4096;
+	high+=4096;
 }
 
 int main(int argc, char** argv){
@@ -114,24 +126,23 @@ int main(int argc, char** argv){
 	hypercall_debug_quiet(STD_SKI_CPU_AFFINITY, "Begin test parent pid %d\n", (int)getpid());
 	
 	clone(child, stack1+1, CLONE_VM, argv[2]);
-    for(i=0;i<n/2;++i){
+	for(i=0;i<n/2;++i){
 		map_a_page_pair();
 	}
 	int ski_ret = ski_test_start(STD_SKI_CPU_AFFINITY, STD_SKI_TOTAL_CPUS, 0);
 	for(i=n/2;i!=n;++i){
 		map_a_page_pair();
 	}
-	
+	for(;i!=0;--i){
+		unmap_a_page_pair();
+	}
 	ski_test_finish(STD_SKI_CPU_AFFINITY, 0);
 
 	hypercall_debug_quiet(STD_SKI_CPU_AFFINITY, "Parent finished\n");
 	
-	systemf("cat /proc/%d/maps | ./debug", getpid());
-
 	int status;
 	pid_t child_id = waitpid(-1, &status, __WCLONE);
 	hypercall_debug_quiet(STD_SKI_CPU_AFFINITY, (char*)"wait for child %d finish, err=%d", child_id, status);
-	hypercall_debug_quiet(STD_SKI_CPU_AFFINITY, (char*)"END INFO");
 
 	return 0;
 }
